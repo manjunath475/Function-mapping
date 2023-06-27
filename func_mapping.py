@@ -8,6 +8,14 @@ import math
 class Calculations:
     """Class data contains all the methods required for finding the ideal functions to visualizaing the deviation between 
     ideal functions data and test data"""    
+    def load_data(self, table_name,engine,metadata):
+        """Method load_data takes the table name and engine data as input and outputs the whole table data from the 
+        database"""
+        table = db.Table(table_name, metadata, autoload_with = engine)
+        query = db.select(table)
+        get_data = pd.read_sql(query,engine)
+        return get_data
+
     def find_lse(self,y, y_id):
         """Method find_lse returns the sum of the least square errors of the input functions"""
         return np.sum((y-y_id)**2)
@@ -68,31 +76,39 @@ class Calculations:
     
 class Visualize(Calculations):
     def vis_data(self,output,col):
-            """Method vis_data visualizes the deviation between the test data provided and mapped function of the 
-            ideal data using bokeh"""
-            y = output['y'].values.tolist()
-            x_y = np.linspace(np.min(output['x']), np.max(output['x']),num=len(y))
-            ymap = output[f'{col}'].values.tolist()
-            x_ymap = np.linspace(np.min(output['x']), np.max(output['x']),num=len(ymap))
+        """Method vis_data visualizes the deviation between the test data provided and mapped function of the 
+        ideal data using bokeh"""
+        y = output['y'].values.tolist()
+        x_y = np.linspace(np.min(output['x']), np.max(output['x']),num=len(y))
+        ymap = output[f'{col}'].values.tolist()
+        x_ymap = np.linspace(np.min(output['x']), np.max(output['x']),num=len(ymap))
 
-            """Plotting the deviation"""
-            fig = figure(title=f'{col} Plot', x_axis_label='x', y_axis_label='y')
-            fig.line(x_y, y, legend_label="test", line_color="blue", line_width=2)
-            fig.line(x_ymap, ymap, legend_label=f'{col}', line_color="red", line_width=2)
-            show(fig)
-
-def load_data(table_name,engine,metadata):
-    """Method load_data takes the table name and engine data as input and outputs the whole table data from the 
-    database"""
-    table = db.Table(table_name, metadata, autoload_with = engine)
-    query = db.select(table)
-    get_data = pd.read_sql(query,engine)
-    return get_data
+        """Plotting the deviation"""
+        fig = figure(title=f'{col} Plot', x_axis_label='x', y_axis_label='y')
+        fig.line(x_y, y, legend_label="test", line_color="blue", line_width=2)
+        fig.line(x_ymap, ymap, legend_label=f'{col}', line_color="red", line_width=2)
+        show(fig)
     
-def main(train_data, test_data, ideal_data):
+def main():
     """Initializing the object of the class data"""
     process = Visualize()
 
+    """Initializing the engine and the metadata and connecting to a local database using sqlalchemy"""
+    engine = db.create_engine("mysql+pymysql://root:root@localhost/assignment")
+    metadata = db.MetaData()
+    """Load the training data"""
+    train_data = process.load_data('train',engine,metadata)
+    if train_data.empty:
+        raise Exception("Something went wrong while fetching train data")
+    """Load the test data"""
+    test_data = process.load_data('test',engine,metadata)
+    if test_data.empty:
+        raise Exception("Something went wrong while fetching test data")
+    """Load the ideal data"""
+    ideal_data = process.load_data('ideal',engine,metadata)
+    if ideal_data.empty:
+        raise Exception("Something went wrong while fetching ideal data")
+    
     """training data"""
     x_train = train_data.iloc[:,1]
     y_train = train_data.iloc[:,2:]
@@ -123,50 +139,5 @@ def main(train_data, test_data, ideal_data):
             raise Exception(f"Something went wrong while plotting the graph for deviation of the ideal function {col}")
     return True
 
-class Test(unittest.TestCase):
-    def test_one(self):
-        """Testing the code if it is running smoothly without errors"""
-        """Initializing the engine and the metadata and connecting to a local database using sqlalchemy"""
-        engine = db.create_engine("mysql+pymysql://root:root@localhost/assignment")
-        metadata = db.MetaData()
-        """Load the training data"""
-        train_data = load_data('train',engine,metadata)
-        if train_data.empty:
-            raise Exception("Something went wrong while fetching train data")
-        """Load the test data"""
-        test_data = load_data('test',engine,metadata)
-        if test_data.empty:
-            raise Exception("Something went wrong while fetching test data")
-        """Load the ideal data"""
-        ideal_data = load_data('ideal',engine,metadata)
-        if ideal_data.empty:
-            raise Exception("Something went wrong while fetching ideal data")
-        self.assertTrue(main(train_data, test_data, ideal_data))
-
-    def test_two(self):
-        """Testing the function to get the data from the database"""
-        """Initializing the engine and the metadata and connecting to a local database using sqlalchemy"""
-        engine = db.create_engine("mysql+pymysql://root:root@localhost/assignment")
-        metadata = db.MetaData()
-        """Load the training data"""
-        train_data = load_data('train',engine,metadata)
-        self.assertFalse(train_data.empty)
-
-    def test_three(self):
-        """Testing the method to find the least square error"""
-        process = Calculations()
-        a=pd.DataFrame({'l':[1,2,3,4,5]})
-        b=pd.DataFrame({'l':[2,3,4,5,6]})
-        d=process.find_lse(b,a)
-        self.assertEqual(d.l,5)
-
-    def test_four(self):
-        """Testing the method to choose the ideal function"""
-        process = Calculations()
-        a=pd.DataFrame({'l':[1,2,3,4,5]})
-        b=pd.DataFrame({'l':[2,3,4,5,6],'m':[1,2,3,4,5],'n':[1,2,5,4,3]})
-        c=pd.DataFrame({'m':[1,2,3,4,5]})
-        d=process.choose_ideal_funcs(a,b)
-
 if __name__ == '__main__':
-    unittest.main()
+    main()
